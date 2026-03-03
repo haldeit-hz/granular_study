@@ -24,7 +24,7 @@ bgr = {'black': (0, 0, 0),
 
 ##### FUNCTIONS TO DETECT PARTICLES' CONTOUR AND FIT TO ELLIPSE #####
 # Contours (nx1): list of individual particle contours --> JL Addition: Determine # of detected particles
-def get_contours(binary, min_dist=25, min_area=2500): # Ihad to play with the minimum area value. 2500 seems to work fine
+def get_contours(binary, min_dist=25, min_area=3000): # Ihad to play with the minimum area value. 2500 seems to work fine
     '''
     This function cleans the binary image using morphological operations, detects
     particle centers via distance transform and peak detection, separates overlapping
@@ -209,6 +209,35 @@ def match_particles(prev_particles, curr_particles, prev_ids, next_id, max_dist=
 
     return curr_ids, next_id
 
+def get_first_frame(video_path, output_folder, xx, yy, ww, hh):
+    '''
+    This method gets the first frame of the video.
+        parameters:
+            - video_path: path to the video
+            - output_folder: path to output frame
+            - xx, yy: top left corner of ROI
+            - ww, hh: how much ROI extends in x (ww) and y (hh)
+    '''
+    # get video, read first frame
+    cap = cv.VideoCapture(video_path)
+    ret, frame = cap.read()
+    if not ret:
+        print("Error")  # Exit if video can't be read
+        return
+    
+    # crop frame to ROI
+    frame = frame[yy:yy + hh, xx:xx + ww]
+
+    # make output folder if it's not there already
+    os.makedirs(f"{output_folder}FirstFrame", exist_ok=True)
+
+    # save the cropped frame
+    output_path = os.path.join(f"{output_folder}FirstFrame", "first_frame.jpg")
+    cv.imwrite(output_path, frame)
+    cap.release()  # good practice to release the video capture
+
+
+    
 
 #def analyze_movies(video_path, output_folder, xx, yy, ww, hh, in_range1, in_range2 ,walls):
 #def analyze_movies(video_path, output_folder, xx, yy, ww, hh, in_range1, in_range2, in_range3 ,walls):
@@ -258,193 +287,210 @@ def analyze_movies(video_path, output_folder, xx, yy, ww, hh, in_range1, in_rang
         if frame is None:        # Break loop if no frame is returned (end of video)
             break
 
-        # Crop the frame to the region of interest (ROI)
-        frame = frame[yy:yy + hh, xx:xx + ww]
+        if (curr_frame - 1) % 5 == 0:
 
-        # Convert cropped frame to two different color spaces
-        hsv1 = cv.cvtColor(frame, cv.COLOR_BGR2RGB)  # Used for detecting white/transparent particles
-        hsv2 = cv.cvtColor(frame, cv.COLOR_BGR2HSV)  # Used for detecting yellow particles
-        hsv3 = cv.cvtColor(frame, cv.COLOR_BGR2HSV)  # Used for detecting green particles or any other color type --> CHANGE ACCORDINGLY
-        hsv4 = cv.cvtColor(frame, cv.COLOR_BGR2HSV)  # Used for detecting green particles or any other color type --> CHANGE ACCORDINGLY
-  
+            # Crop the frame to the region of interest (ROI)
+            frame = frame[yy:yy + hh, xx:xx + ww]
+            
 
-        # Create an exclusion mask for light blue hues (out-of-focus tubing)
-        hsv_frame = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-        blue_mask = cv.inRange(hsv_frame, np.array([90, 20, 100]), np.array([130, 255, 255]))  # light/dull blues
-
-        # Apply color thresholding to isolate particles within specified color ranges
-        binary1 = cv.inRange(hsv1, np.array(in_range1[0]), np.array(in_range1[1]))  # Mask from RGB space
+            # Convert cropped frame to two different color spaces
+            hsv1 = cv.cvtColor(frame, cv.COLOR_BGR2RGB)  # Used for detecting white/transparent particles
+            hsv2 = cv.cvtColor(frame, cv.COLOR_BGR2HSV)  # Used for detecting yellow particles
+            #hsv3 = cv.cvtColor(frame, cv.COLOR_BGR2HSV)  # Used for detecting green particles or any other color type --> CHANGE ACCORDINGLY
+            #hsv4 = cv.cvtColor(frame, cv.COLOR_BGR2HSV)  # Used for detecting green particles or any other color type --> CHANGE ACCORDINGLY
     
 
-        # Subtract the blue_mask from binary1
-        binary1 = cv.bitwise_and(binary1, cv.bitwise_not(blue_mask))
-        binary2 = cv.inRange(hsv2, np.array(in_range2[0]), np.array(in_range2[1]))  # Mask from HSV space
-        binary3 = cv.inRange(hsv3, np.array(in_range3[0]), np.array(in_range3[1]))  # Mask for HSV range
-        # Threshold both red ranges
-        binary4a = cv.inRange(hsv4, np.array(in_range4a[0]), np.array(in_range4a[1]))
-        binary4b = cv.inRange(hsv4, np.array(in_range4b[0]), np.array(in_range4b[1]))
-        # Combine them
-        binary4 = cv.bitwise_or(binary4a, binary4b)  # Mask for HSV range
+            # Create an exclusion mask for light blue hues (out-of-focus tubing)
+            hsv_frame = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
+            blue_mask = cv.inRange(hsv_frame, np.array([90, 20, 100]), np.array([130, 150, 255]))  # light/dull blues
 
-        # Detect particles in each binary mask and fit ellipses to their contours
-        ellipses_1, outline_1, contours_1 = get_particle_list(binary1)
-        ellipses_2, outline_2, contours_2 = get_particle_list(binary2)
-        ellipses_3, outline_3, contours_3 = get_particle_list(binary3)
-        ellipses_4, outline_4, contours_4 = get_particle_list(binary4)
+            # Apply color thresholding to isolate particles within specified color ranges
+            binary1 = cv.inRange(hsv1, np.array(in_range1[0]), np.array(in_range1[1]))  # Mask from RGB space
+        
 
-        # Combine detections from both masks
-        ellipses_combined = ellipses_1 + ellipses_2 + ellipses_3 + ellipses_4
-        contours_combined = contours_1 + contours_2 + contours_3 + contours_4
+            # Subtract the blue_mask from binary1
+            binary1 = cv.bitwise_and(binary1, cv.bitwise_not(blue_mask))
+            binary2 = cv.inRange(hsv2, np.array(in_range2[0]), np.array(in_range2[1]))  # Mask from HSV space
+            #binary3 = cv.inRange(hsv3, np.array(in_range3[0]), np.array(in_range3[1]))  # Mask for HSV range
+            # Threshold both red ranges
+            #binary4a = cv.inRange(hsv4, np.array(in_range4a[0]), np.array(in_range4a[1]))
+            #binary4b = cv.inRange(hsv4, np.array(in_range4b[0]), np.array(in_range4b[1]))
+            # Combine them
+            #binary4 = cv.bitwise_or(binary4a, binary4b)  # Mask for HSV range
 
-        # Match detected particles to previous frame’s particles for ID continuity
-        particle_ids, next_id = match_particles(prev_particles, ellipses_combined, prev_ids, next_id)
+            #----------------------------------------
+            binary2 = cv.bitwise_or(binary1, binary2)
+            # binary1 = cv.bitwise_or(binary1, binary3)
+            # binary1 = cv.bitwise_or(binary1, binary4)
+            #----------------------------------------
 
-        # Update the previous frame data for use in the next iteration
-        prev_particles = ellipses_combined
-        prev_ids = particle_ids
+            # Detect particles in each binary mask and fit ellipses to their contours
+            #ellipses_1, outline_1, contours_1 = get_particle_list(binary1)
+            ellipses_2, outline_2, contours_2 = get_particle_list(binary2)
+            #ellipses_3, outline_3, contours_3 = get_particle_list(binary3)
+            #ellipses_4, outline_4, contours_4 = get_particle_list(binary4)
 
-        # Make a copy of the frame to draw ellipses and text
-        image = frame.copy()
-        for ellipse, pid in zip(ellipses_combined, particle_ids):
-            x, y, maj, minr, ang = map(int, ellipse)  # Extract ellipse properties
-            cv.ellipse(image, ((x, y), (maj, minr), ang), bgr['red'], 2)  # Draw ellipse on frame
-            cv.putText(image, f'ID #{pid}', (x, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.6, bgr['black'], 2)  # Add ID label
 
-        # Draw contours of detected particles
-        cv.drawContours(image, contours_combined, -1, bgr['blue'], 1)
+            # Combine detections from both masks
+            ellipses_combined = ellipses_2# + ellipses_2 + ellipses_3 + ellipses_4
+            contours_combined = contours_2# + contours_2 + contours_3 + contours_4
 
-        # Draw wall outlines if provided
-        if walls:
-            #for i in range(len(walls)):
-                #p1 = walls[i]
-                #p2 = walls[(i + 1) % len(walls)]  # Connect walls in a closed loop
-                #cv.line(image, tuple(p1), tuple(p2), bgr['yellow'], 2)
-            cv.rectangle(image, (00, 00), (ww, hh), bgr['black'], 10)
+            # Match detected particles to previous frame’s particles for ID continuity
+            particle_ids, next_id = match_particles(prev_particles, ellipses_combined, prev_ids, next_id)
 
-        # Save particle data to a text file if any were detected
-        if ellipses_combined:
-            # Get centers
-            centers = np.array([[e[0], e[1]] for e in ellipses_combined])
+            # Update the previous frame data for use in the next iteration
+            prev_particles = ellipses_combined
+            prev_ids = particle_ids
 
-            # Compute pairwise distances
-            distances = np.linalg.norm(centers[:, None, :] - centers[None, :, :], axis=-1)
-            # Particle-specific cutoffs (based on their minor axis)
-            cutoffs = 1.05 * np.array([e[2] for e in ellipses_combined])
+            # Make a copy of the frame to draw ellipses and text
+            image = frame.copy()
+            for ellipse, pid in zip(ellipses_combined, particle_ids):
+                x, y, maj, minr, ang = map(int, ellipse)  # Extract ellipse properties
+                cv.ellipse(image, ((x, y), (maj, minr), ang), bgr['red'], 2)  # Draw ellipse on frame
+                cv.putText(image, f'ID #{pid}', (x, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.6, bgr['black'], 2)  # Add ID label
 
-            # Coordination number calculation using asymmetric cutoffs
-            coord_nums = np.zeros(len(centers), dtype=int)
-            for i in range(len(centers)):
-                for j in range(i + 1, len(centers)):
-                    cutoff_ij = 0.5 * (cutoffs[i] + cutoffs[j])
-                    if distances[i, j] <= cutoff_ij:
-                        coord_nums[i] += 1
-                        coord_nums[j] += 1
-            # Contact graph
-            G = nx.Graph()
-            G.add_nodes_from(range(len(centers)))
-            for i in range(len(centers)):
-                for j in range(i + 1, len(centers)):
-                    avg_cutoff = 0.5 * (cutoffs[i] + cutoffs[j])
-                    if 0 < distances[i, j] < avg_cutoff:
-                        G.add_edge(i, j)
+            # Draw contours of detected particles
+            cv.drawContours(image, contours_combined, -1, bgr['blue'], 1)
 
-            # Clustering coefficient
-            clustering_coeffs = nx.clustering(G)
-            clustering_list = [clustering_coeffs[i] for i in range(len(centers))]
+            # Draw wall outlines if provided
+            if walls:
+                #for i in range(len(walls)):
+                    #p1 = walls[i]
+                    #p2 = walls[(i + 1) % len(walls)]  # Connect walls in a closed loop
+                    #cv.line(image, tuple(p1), tuple(p2), bgr['yellow'], 2)
+                cv.rectangle(image, (00, 00), (ww, hh), bgr['black'], 10)
 
-            # Connected components → clusters
-            clusters = list(nx.connected_components(G))
-            cluster_labels = np.zeros(len(centers), dtype=int)
-            for label, cluster in enumerate(clusters):
-                for idx in cluster:
-                    cluster_labels[idx] = label
+            # Save particle data to a text file if any were detected
+            if ellipses_combined:
+                # Get centers
+                centers = np.array([[e[0], e[1]] for e in ellipses_combined])
 
-            # Cluster density
-            cluster_densities = []
-            density_map = {}
-            for i, cluster in enumerate(clusters):
-                subG = G.subgraph(cluster)
-                d = nx.density(subG)
-                cluster_densities.append(d)
-                for idx in cluster:
-                    density_map[idx] = d
-            density_list = [density_map[i] for i in range(len(centers))]
+                # Compute pairwise distances
+                distances = np.linalg.norm(centers[:, None, :] - centers[None, :, :], axis=-1)
+                # Particle-specific cutoffs (based on their minor axis)
+                cutoffs = 1.05 * np.array([e[2] for e in ellipses_combined])
 
-            # Betweenness centrality
-            node_centrality = nx.betweenness_centrality(G)
-            centrality_list = [node_centrality[i] for i in range(len(centers))]
+                # Coordination number calculation using asymmetric cutoffs
+                coord_nums = np.zeros(len(centers), dtype=int)
+                for i in range(len(centers)):
+                    for j in range(i + 1, len(centers)):
+                        cutoff_ij = 0.5 * (cutoffs[i] + cutoffs[j])
+                        if distances[i, j] <= cutoff_ij:
+                            coord_nums[i] += 1
+                            coord_nums[j] += 1
+                # Contact graph
+                G = nx.Graph()
+                G.add_nodes_from(range(len(centers)))
+                for i in range(len(centers)):
+                    for j in range(i + 1, len(centers)):
+                        avg_cutoff = 0.5 * (cutoffs[i] + cutoffs[j])
+                        if 0 < distances[i, j] < avg_cutoff:
+                            G.add_edge(i, j)
 
-            # Louvain modularity
-            try:
-                partition = community_louvain.best_partition(G)
-                modularity = community_louvain.modularity(partition, G)
-            except ValueError:
-                modularity = 0.0
-            
-            # Global efficiency
-            try:
-                efficiency = nx.global_efficiency(G)
-            except:
-                efficiency = 0.0
+                # Clustering coefficient
+                clustering_coeffs = nx.clustering(G)
+                clustering_list = [clustering_coeffs[i] for i in range(len(centers))]
 
-            # Save per-frame system stats
-            with open(f"{output_folder}SystemSummary.txt", 'a') as f:
-                f.write(f"{curr_frame}\t{len(centers)}\t{len(clusters)}\t{max(len(c) for c in clusters)}\t{efficiency:.4f}\t{modularity:.4f}\n")
+                # Connected components → clusters
+                clusters = list(nx.connected_components(G))
+                cluster_labels = np.zeros(len(centers), dtype=int)
+                for label, cluster in enumerate(clusters):
+                    for idx in cluster:
+                        cluster_labels[idx] = label
 
-            # Save particle data
-            areas = [cv.contourArea(cnt) for cnt in contours_combined]
-            data = np.array([
-                e + [area, pid, cn, cluster_labels[i], clustering_list[i], density_list[i], centrality_list[i]]
-                for i, (e, area, pid, cn)
-                in enumerate(zip(ellipses_combined, areas, particle_ids, coord_nums))
-            ])
-            np.savetxt(
-                f"{output_folder}OutputFiles/PsC_{curr_frame:01d}.txt",
-                data,
-                delimiter='\t',
-                fmt='%f',
-                header='X_0\tY_0\tMinor_Axis\tMajor_Axis\tAngle\tArea\tID\tCoordination_Number\tCluster_ID\tClustering_Coeff\tCluster_Density\tBetweenness_Centrality'
-            )# THIS PORTION FOCUSES ON CONTACT NETWORK IMAGE GENERATION
-            # Create a black canvas the size of the ROI
-            network_img = np.zeros((hh, ww), dtype=np.uint8)
+                # Cluster density
+                cluster_densities = []
+                density_map = {}
+                for i, cluster in enumerate(clusters):
+                    subG = G.subgraph(cluster)
+                    d = nx.density(subG)
+                    cluster_densities.append(d)
+                    for idx in cluster:
+                        density_map[idx] = d
+                density_list = [density_map[i] for i in range(len(centers))]
 
-            # Draw connection lines for neighbors
-            for i in range(len(centers)):
-                for j in range(i + 1, len(centers)):
-                    avg_cutoff = 0.5 * (cutoffs[i] + cutoffs[j])
-                    if 0 < distances[i, j] <= avg_cutoff:
-                        pt1 = tuple(np.round(centers[i]).astype(int))
-                        pt2 = tuple(np.round(centers[j]).astype(int))
-                        cv.line(network_img, pt1, pt2, 255, 1)
+                # Betweenness centrality
+                node_centrality = nx.betweenness_centrality(G)
+                centrality_list = [node_centrality[i] for i in range(len(centers))]
 
-            # Draw particle nodes and label them by ID
-            for (x, y), pid in zip(centers, particle_ids):
-                cx, cy = int(round(x)), int(round(y))
-                cv.circle(network_img, (cx, cy), 3, 255, -1)  # White dot at particle center
-                cv.putText(network_img, str(pid), (cx + 5, cy - 5), cv.FONT_HERSHEY_SIMPLEX, 0.4, 255, 1)
+                # Louvain modularity
+                try:
+                    partition = community_louvain.best_partition(G)
+                    modularity = community_louvain.modularity(partition, G)
+                except ValueError:
+                    modularity = 0.0
+                
+                # Global efficiency
+                try:
+                    efficiency = nx.global_efficiency(G)
+                except:
+                    efficiency = 0.0
 
-            # Save the network image
-            cv.imwrite(f"{output_folder}ContactNetworks/ContactNet_{curr_frame:01d}.png", network_img)
+                # Save per-frame system stats
+                with open(f"{output_folder}SystemSummary.txt", 'a') as f:
+                    f.write(f"{curr_frame}\t{len(centers)}\t{len(clusters)}\t{max(len(c) for c in clusters)}\t{efficiency:.4f}\t{modularity:.4f}\n")
 
-        # Save labeled frame image
-        cv.imwrite(f"{output_folder}LabeledFrames/Frame_{curr_frame:01d}.png", image)
+                # Save particle data
+                areas = [cv.contourArea(cnt) for cnt in contours_combined]
+                data = np.array([
+                    e + [area, pid, cn, cluster_labels[i], clustering_list[i], density_list[i], centrality_list[i]]
+                    for i, (e, area, pid, cn)
+                    in enumerate(zip(ellipses_combined, areas, particle_ids, coord_nums))
+                ])
+                np.savetxt(
+                    f"{output_folder}OutputFiles/PsC_{curr_frame:01d}.txt",
+                    data,
+                    delimiter='\t',
+                    fmt='%f',
+                    header='X_0\tY_0\tMinor_Axis\tMajor_Axis\tAngle\tArea\tID\tCoordination_Number\tCluster_ID\tClustering_Coeff\tCluster_Density\tBetweenness_Centrality'
+                )# THIS PORTION FOCUSES ON CONTACT NETWORK IMAGE GENERATION
+                # Create a black canvas the size of the ROI
+                network_img = np.zeros((hh, ww), dtype=np.uint8)
 
-        # Save binary masks used for detection
-        cv.imwrite(f"{output_folder}BinaryImages/ActivePartsBinaryFrame_{curr_frame:01d}.png", binary1)
-        cv.imwrite(f"{output_folder}BinaryImages/PassivePartsBinaryFrame_{curr_frame:01d}.png", binary4)
+                # Draw connection lines for neighbors
+                for i in range(len(centers)):
+                    for j in range(i + 1, len(centers)):
+                        avg_cutoff = 0.5 * (cutoffs[i] + cutoffs[j])
+                        if 0 < distances[i, j] <= avg_cutoff:
+                            pt1 = tuple(np.round(centers[i]).astype(int))
+                            pt2 = tuple(np.round(centers[j]).astype(int))
+                            cv.line(network_img, pt1, pt2, 255, 1)
+
+                # Draw particle nodes and label them by ID
+                for (x, y), pid in zip(centers, particle_ids):
+                    cx, cy = int(round(x)), int(round(y))
+                    cv.circle(network_img, (cx, cy), 3, 255, -1)  # White dot at particle center
+                    cv.putText(network_img, str(pid), (cx + 5, cy - 5), cv.FONT_HERSHEY_SIMPLEX, 0.4, 255, 1)
+
+                # Save the network image
+                cv.imwrite(f"{output_folder}ContactNetworks/ContactNet_{curr_frame:01d}.png", network_img)
+
+            # Save labeled frame image
+            cv.imwrite(f"{output_folder}LabeledFrames/Frame_{curr_frame:01d}.png", image)
+
+            # Save binary masks used for detection
+            cv.imwrite(f"{output_folder}BinaryImages/AllPartsBinaryFrame_{curr_frame:01d}.png", binary2)
+            #cv.imwrite(f"{output_folder}BinaryImages/PassiveParts-yellow-BinaryFrame_{curr_frame:01d}.png", binary2)
+            #cv.imwrite(f"{output_folder}BinaryImages/PassiveParts-green-BinaryFrame_{curr_frame:01d}.png", binary3)
+            #cv.imwrite(f"{output_folder}BinaryImages/PassiveParts-red-BinaryFrame_{curr_frame:01d}.png", binary4)
 
         curr_frame += 1  # Increment frame counter
 
 
 # IMPORTANT NOTE: Depending on the type of color, change in_range accordingly
 
-walls_fixed = [(0,0), (1145,0), (1145,1030), (0,1030)] # The origin is on the top left
-white_range = [(155, 155, 155), (255, 255, 255)]   # Transparent/white
-#yellow_range = [[18, 70,70], [70, 255, 255]] # Yellow
-yellow_range = [[18, 70, 70], [70, 255, 255]] 
+# walls_fixed = [(0,0), (1145,0), (1145,1030), (0,1030)] # The origin is on the top left
+white_range = [(130, 130, 130), (255, 255, 255)]   # Transparent/white
+# yellow_range = [[18, 70, 70], [70, 255, 255]] 
+yellow_range = [[20, 80, 80], [70, 255, 255]]
 green_range = [[65, 60, 40], [85, 255, 255]]
 red_range1 = [[0, 80, 80], [8, 255, 255]]
 red_range2 = [[142, 100, 100], [180, 255, 255]]
 
-#analyze_movies("DSC_0147.MOV", "Results147/", 245, 35, 1400, 1050, in_range1=white_range, in_range2=green_range,walls=walls_fixed )
-analyze_movies("DSC_0169.MOV", "Results169/", 253, 0, 1386, 1030, in_range1=white_range,in_range2=yellow_range, in_range3=green_range, in_range4a=red_range1, in_range4b = red_range2, walls=walls_fixed )
+
+# analyze_movies("./movies/DSC_0726.MOV", "./results_0726-2/", 305, 0, 1325, 990, in_range1=white_range,in_range2=yellow_range, in_range3=green_range, in_range4a=red_range1, in_range4b = red_range2, walls=None )
+# analyze_movies("./movies/DSC_0728.MOV", "./results_0728-7/", 335, 25, 1265, 940, in_range1=white_range,in_range2=yellow_range, in_range3=green_range, in_range4a=red_range1, in_range4b = red_range2, walls=None )
+# analyze_movies("./movies/DSC_0736.MOV", "./results_0736-6/", 265, 0, 1375, 1030, in_range1=white_range,in_range2=yellow_range, in_range3=green_range, in_range4a=red_range1, in_range4b = red_range2, walls=None )
+analyze_movies("./movies/DSC_0749.MOV", "./results_0749-3/", 265, 0, 1395, 1040, in_range1=white_range,in_range2=yellow_range, in_range3=green_range, in_range4a=red_range1, in_range4b = red_range2, walls=None )
+
+# get_first_frame("./movies/DSC_0726.MOV", "./", 290, 0, 1356, 1000)
